@@ -2,5 +2,6 @@
 title: Contact
 ---
 
-I live in a small hut in the mountains of Kumano Kodō on Kii Hantō and would not
-like to be contacted.
+* jonas.juselius@gmail.com
+* [GitHub](https://github.com/juselius)
+* [Twitter](https://twitter.com/copointfree)
