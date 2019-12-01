@@ -4,19 +4,19 @@
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-        <title>Copointfree - Functional programming in the real world</title>
+        <title>Copointfree - AzureAd Authentication with F#</title>
         <!-- <link rel="stylesheet" type="text/css" href="/css/default.css" /> -->
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
-        <link rel="stylesheet" type="text/css" href="./css/blog.css" />
+        <link rel="stylesheet" type="text/css" href="../css/blog.css" />
     </head>
     <body>
         <div class="blog-masthead">
             <div class="container">
                 <nav class="nav blog-nav">
-                    <a class="nav-link active" href="./">Home</a>
-                    <a class="nav-link" href="./about.html">About</a>
-                    <a class="nav-link" href="./contact.html">Contact</a>
-                    <a class="nav-link" href="./archive.html">Archive</a>
+                    <a class="nav-link active" href="../">Home</a>
+                    <a class="nav-link" href="../about.html">About</a>
+                    <a class="nav-link" href="../contact.html">Contact</a>
+                    <a class="nav-link" href="../archive.html">Archive</a>
                 </nav>
             </div>
         </div>
@@ -33,22 +33,14 @@
                 <div class="col-sm-8 blog-main">
 
                     <div>
-                        <h2>Functional programming in the real world</h2>
-                        For the past eight years I have been working almost exclusively with functional
-programming. In this blog I share practial tips and tricks that we have picked
-up along the way. Enjoy!
-
-<h3>Posts</h3>
-<ul>
+                        <h2>AzureAd Authentication with F#</h2>
+                        <div class="info">
+    Posted on December  3, 2019
     
-        <li>
-            <a href="./posts/2019-12-03-fsharp-authentication-oid.html">AzureAd Authentication with F#</a> - December  3, 2019
-        </li>
-    
-</ul>
+</div>
 
-
-<p>…or you can find more in the <a href="./archive.html">archives</a>.</p>
+<p>Almost all applications need some form of authentiation and authorization scheme. It’s a a pain in the neck for both developers and end users, and I want as little to do with it as possible. OpenId Connect and AzureAd offers a great way of delegating the mess to somebody else, and getting Single Sign-On (SSO) as an added bonus.</p>
+<p>This is the first post of in a two-part series. In the first post we cover AzureAD and OpenID Connect authentication. In the second post we cover Windows Authentication (Kerberos Negotiate) in F# on .NET Core 3, using docker running in Kubernetes.</p>
 
                     </div>
 
