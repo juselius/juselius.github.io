@@ -5,7 +5,7 @@ title: About
 This is the personal blog of Jonas Juselius. I started programming at the age of
 8 on my mothers Olivetti PC, and received my Ph.D. in quantum
 chemistry in 2004. For the past 10 years I have been working in
-High-Performacne Computing and software development. In 2012 I discovered
+High-Performance Computing and software development. In 2012 I discovered
 functional programming and Haskell. Since
 2015 I have been leading the development group at Serit Tromsø AS, working full
 time with functional programming mostly in F#. I also hold a position at
