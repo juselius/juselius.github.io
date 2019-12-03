@@ -7,6 +7,8 @@
         <title>Copointfree - AzureAd Authentication with F#</title>
         <!-- <link rel="stylesheet" type="text/css" href="/css/default.css" /> -->
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
         <link rel="stylesheet" type="text/css" href="../css/blog.css" />
     </head>
     <body>
@@ -33,14 +35,186 @@
                 <div class="col-sm-8 blog-main">
 
                     <div>
-                        <h2>AzureAd Authentication with F#</h2>
+                        <h1>AzureAd Authentication with F#</h1>
                         <div class="info">
     Posted on December  3, 2019
     
 </div>
 
-<p>Almost all applications need some form of authentiation and authorization scheme. It’s a a pain in the neck for both developers and end users, and I want as little to do with it as possible. OpenId Connect and AzureAd offers a great way of delegating the mess to somebody else, and getting Single Sign-On (SSO) as an added bonus.</p>
-<p>This is the first post of in a two-part series. In the first post we cover AzureAD and OpenID Connect authentication. In the second post we cover Windows Authentication (Kerberos Negotiate) in F# on .NET Core 3, using docker running in Kubernetes.</p>
+<p>Almost all applications need authentication and authorization in some form. Authentication a pain in the neck for both developers and end users, and personally I want as little to do with it as possible. OpenId Connect and AzureAd offers a great way of delegating the job to somebody else, gaining Single Sign-On (SSO) as an added bonus.</p>
+<p>We will cover these common cases:</p>
+<ol>
+<li>Authenticating a server-side application, acting on behalf of the user.</li>
+<li>Authenticating the user with the server application.</li>
+<li>Authenticating with Microsoft Graph, to access a wealth of useful API:s.</li>
+</ol>
+<p>This is the first post of in a two-part series. In the first post we cover AzureAD and OpenID Connect authentication. In the second post we cover Windows Authentication (Kerberos Negotiate) in F# on .NET Core 3, using Docker running on Kubernetes.</p>
+<p>The complete example code is available on <a href="https://github.com/juselius/FSharpAzureAuthentication">GitHub</a>.</p>
+<h3 id="overview">Overview</h3>
+<p>In the following we will be using F# on .NET Core 3.0, together with ASP.NET Core and <a href="https://github.com/giraffe-fsharp/Giraffe">Giraffe</a>. Giraffe offers a functional escape valve from the dreads of OOP builder patterns, dependency injection and other complexities of ASP.NET Core. Our strategy is to configure the necessary ASP.NET middleware, and then escape as quickly as possible into the functional domain.</p>
+<h3 id="azuread-registration">AzureAd registration</h3>
+<p>AzureAd is a complex machinery, with plenty of toggles. In this example we will set up AzureAd to authenticate a server-side application with permission to act on the behalf of users in the specified organisation (tenants). Additionally we require users to be authenticated with the tenant in order to access any application API:s. This step is actually optional, but usually a good idea.</p>
+<p>To register your application with AzureAd, follow these steps:</p>
+<ol>
+<li>Log in to the <a href="https://portal.azure.com">Azure portal</a> with your account.</li>
+<li>Navigate to <strong>Azure Active Directory</strong> -&gt; <strong>App registrations</strong> from the main menu and choose <em>New registration</em>.</li>
+<li>Give your app a name, choose <strong>Single tenant</strong>, and give a callback URL of <em>https://localhost:8085/signin-oidc</em> (for the example app).</li>
+<li>Copy the <em>Client Id</em> and <em>Tenant Id</em> into the <code>appsettings.json</code> file below.</li>
+<li>Navigate to the <strong>Certificates &amp; secrets</strong> menu and create a new <em>secret</em>, and copy it to <code>appsettings.json</code>.</li>
+<li>Navigate to <strong>Authentication</strong> and tick both the <em>Access tokes</em> and <em>ID tokes</em> boxes under the <strong>Implicit grant</strong> section. You can also add <em>https://localhost:8085/signout</em> under <strong>Logout URL</strong>.</li>
+<li>Navigate to <strong>API permissions</strong> to give the app any additional permissions you need. By default it can read basic information about the user.</li>
+</ol>
+<div class="sourceCode" id="cb1"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb1-1"><a href="#cb1-1"></a><span class="fu">{</span></span>
+<span id="cb1-2"><a href="#cb1-2"></a>   <span class="dt">&quot;AzureAd&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb1-3"><a href="#cb1-3"></a>        <span class="dt">&quot;Instance&quot;</span><span class="fu">:</span> <span class="st">&quot;https://login.microsoftonline.com&quot;</span><span class="fu">,</span></span>
+<span id="cb1-4"><a href="#cb1-4"></a>        <span class="dt">&quot;CallbackPath&quot;</span><span class="fu">:</span> <span class="st">&quot;/signin-oidc&quot;</span><span class="fu">,</span></span>
+<span id="cb1-5"><a href="#cb1-5"></a>        <span class="dt">&quot;BaseUrl&quot;</span><span class="fu">:</span> <span class="st">&quot;https://localhost:8085&quot;</span><span class="fu">,</span></span>
+<span id="cb1-6"><a href="#cb1-6"></a>        <span class="dt">&quot;ClientId&quot;</span><span class="fu">:</span> <span class="st">&quot;&quot;</span><span class="fu">,</span></span>
+<span id="cb1-7"><a href="#cb1-7"></a>        <span class="dt">&quot;TenantId&quot;</span><span class="fu">:</span> <span class="st">&quot;&quot;</span><span class="fu">,</span></span>
+<span id="cb1-8"><a href="#cb1-8"></a>        <span class="dt">&quot;ClientSecret&quot;</span><span class="fu">:</span> <span class="st">&quot;&quot;</span><span class="fu">,</span></span>
+<span id="cb1-9"><a href="#cb1-9"></a>        <span class="dt">&quot;Scopes&quot;</span><span class="fu">:</span> <span class="st">&quot;.default&quot;</span><span class="fu">,</span></span>
+<span id="cb1-10"><a href="#cb1-10"></a>        <span class="dt">&quot;GraphResourceId&quot;</span><span class="fu">:</span> <span class="st">&quot;https://graph.microsoft.com/&quot;</span><span class="fu">,</span></span>
+<span id="cb1-11"><a href="#cb1-11"></a>        <span class="dt">&quot;GraphScopes&quot;</span><span class="fu">:</span> <span class="st">&quot;.default&quot;</span></span>
+<span id="cb1-12"><a href="#cb1-12"></a>    <span class="fu">},</span></span>
+<span id="cb1-13"><a href="#cb1-13"></a>    <span class="dt">&quot;AllowedHosts&quot;</span><span class="fu">:</span> <span class="st">&quot;*&quot;</span></span>
+<span id="cb1-14"><a href="#cb1-14"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="asp.net-core-middleware">ASP.NET Core middleware</h3>
+<p>Next, we need to configure the necessary ASP.NET Core middleware to enable <em>OpenId Connect</em> authentication:</p>
+<ul>
+<li>Authentication scheme</li>
+<li>Cooke policy</li>
+<li>CORS</li>
+<li>HSTS</li>
+<li>HTTPS redirect</li>
+<li>AzureAd authentication</li>
+<li>Graph authentication</li>
+</ul>
+<p>The code for the <a href="https://github.com/juselius/FSharpAzureAuthentication/blob/master/src/AzureAd.fs">AzureAd</a> and <a href="https://github.com/juselius/FSharpAzureAuthentication/blob/master/src/Graph.fs">Graph</a> authentication middleware have been tranlated to F# from this C# <a href="https://github.com/Azure-Samples/active-directory-dotnet-webapp-openidconnect">implementation</a> by Microsoft.</p>
+<p>The complete ASP.NET Core WebHost and middleware configuration for AzureAd:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode fsharp"><code class="sourceCode fsharp"><span id="cb2-1"><a href="#cb2-1"></a><span class="kw">let</span> configureCors (builder : CorsPolicyBuilder) =</span>
+<span id="cb2-2"><a href="#cb2-2"></a>  builder.WithOrigins([| <span class="st">&quot;https://login.microsoftonline.com&quot;</span> |])</span>
+<span id="cb2-3"><a href="#cb2-3"></a>    .AllowAnyMethod()</span>
+<span id="cb2-4"><a href="#cb2-4"></a>    .AllowAnyHeader() |&gt; ignore</span>
+<span id="cb2-5"><a href="#cb2-5"></a></span>
+<span id="cb2-6"><a href="#cb2-6"></a><span class="kw">let</span> cookiePolicyOptions (opt : CookiePolicyOptions) =</span>
+<span id="cb2-7"><a href="#cb2-7"></a>  opt.CheckConsentNeeded &lt;- <span class="kw">fun</span> _ -&gt; <span class="kw">true</span></span>
+<span id="cb2-8"><a href="#cb2-8"></a>  opt.MinimumSameSitePolicy &lt;- Http<span class="kw">.</span>SameSiteMode<span class="kw">.</span>None</span>
+<span id="cb2-9"><a href="#cb2-9"></a></span>
+<span id="cb2-10"><a href="#cb2-10"></a><span class="kw">let</span> authenticationOptions (opt : AuthenticationOptions) =</span>
+<span id="cb2-11"><a href="#cb2-11"></a>  opt.DefaultScheme &lt;-</span>
+<span id="cb2-12"><a href="#cb2-12"></a>    CookieAuthenticationDefaults<span class="kw">.</span>AuthenticationScheme</span>
+<span id="cb2-13"><a href="#cb2-13"></a>  opt.DefaultChallengeScheme &lt;-</span>
+<span id="cb2-14"><a href="#cb2-14"></a>    OpenIdConnectDefaults<span class="kw">.</span>AuthenticationScheme</span>
+<span id="cb2-15"><a href="#cb2-15"></a>  opt.DefaultAuthenticateScheme &lt;-</span>
+<span id="cb2-16"><a href="#cb2-16"></a>    CookieAuthenticationDefaults<span class="kw">.</span>AuthenticationScheme</span>
+<span id="cb2-17"><a href="#cb2-17"></a></span>
+<span id="cb2-18"><a href="#cb2-18"></a><span class="kw">let</span> hstsOptions (opt : HstsOptions) =</span>
+<span id="cb2-19"><a href="#cb2-19"></a>  opt.IncludeSubDomains &lt;- <span class="kw">true</span></span>
+<span id="cb2-20"><a href="#cb2-20"></a>  opt.MaxAge &lt;- TimeSpan<span class="kw">.</span>FromDays(<span class="fl">365.0</span>)</span>
+<span id="cb2-21"><a href="#cb2-21"></a></span>
+<span id="cb2-22"><a href="#cb2-22"></a><span class="kw">let</span> configureApp (app : IApplicationBuilder) =</span>
+<span id="cb2-23"><a href="#cb2-23"></a>  app.UseDefaultFiles()</span>
+<span id="cb2-24"><a href="#cb2-24"></a>    .UseHttpsRedirection()</span>
+<span id="cb2-25"><a href="#cb2-25"></a>    .UsePathBase(PathString <span class="st">&quot;/&quot;</span>)</span>
+<span id="cb2-26"><a href="#cb2-26"></a>    .UseStaticFiles(staticFileOptions)</span>
+<span id="cb2-27"><a href="#cb2-27"></a>    .UseCookiePolicy()</span>
+<span id="cb2-28"><a href="#cb2-28"></a>    .UseCors(configureCors)</span>
+<span id="cb2-29"><a href="#cb2-29"></a>    .UseAuthentication()</span>
+<span id="cb2-30"><a href="#cb2-30"></a>    .UseSession()</span>
+<span id="cb2-31"><a href="#cb2-31"></a>    .UseGiraffe WebApp<span class="kw">.</span>webApp</span>
+<span id="cb2-32"><a href="#cb2-32"></a></span>
+<span id="cb2-33"><a href="#cb2-33"></a><span class="kw">let</span> configureServices (services : IServiceCollection) =</span>
+<span id="cb2-34"><a href="#cb2-34"></a>  <span class="kw">let</span> sp  = services.BuildServiceProvider()</span>
+<span id="cb2-35"><a href="#cb2-35"></a>  <span class="kw">let</span> config = sp.GetService&lt;IConfiguration&gt;()</span>
+<span id="cb2-36"><a href="#cb2-36"></a>  <span class="kw">let</span> jsonSerializer = Thoth<span class="kw">.</span>Json<span class="kw">.</span>Giraffe<span class="kw">.</span>ThothSerializer()</span>
+<span id="cb2-37"><a href="#cb2-37"></a>  services.AddGiraffe() |&gt; ignore</span>
+<span id="cb2-38"><a href="#cb2-38"></a>  services.AddSingleton&lt;IJsonSerializer&gt;(jsonSerializer) |&gt; ignore</span>
+<span id="cb2-39"><a href="#cb2-39"></a>  services.Configure(cookiePolicyOptions) |&gt; ignore</span>
+<span id="cb2-40"><a href="#cb2-40"></a>  services.Configure(hstsOptions) |&gt; ignore</span>
+<span id="cb2-41"><a href="#cb2-41"></a>  services.AddCors() |&gt; ignore</span>
+<span id="cb2-42"><a href="#cb2-42"></a>  services.AddSingleton&lt;IGraphAuthProvider, GraphAuthProvider&gt;() |&gt; ignore</span>
+<span id="cb2-43"><a href="#cb2-43"></a>  services.AddResponseCaching() |&gt; ignore</span>
+<span id="cb2-44"><a href="#cb2-44"></a>  services.AddDistributedMemoryCache() |&gt; ignore</span>
+<span id="cb2-45"><a href="#cb2-45"></a>  services.AddSession() |&gt; ignore</span>
+<span id="cb2-46"><a href="#cb2-46"></a>  services.AddHttpContextAccessor() |&gt; ignore</span>
+<span id="cb2-47"><a href="#cb2-47"></a>  services.AddAuthentication(authenticationOptions)</span>
+<span id="cb2-48"><a href="#cb2-48"></a>      .AddAzureAd(<span class="kw">fun</span> options -&gt; config.Bind(<span class="st">&quot;AzureAd&quot;</span>, options))</span>
+<span id="cb2-49"><a href="#cb2-49"></a>      .AddCookie() |&gt; ignore</span>
+<span id="cb2-50"><a href="#cb2-50"></a></span>
+<span id="cb2-51"><a href="#cb2-51"></a>WebHost</span>
+<span id="cb2-52"><a href="#cb2-52"></a>  .CreateDefaultBuilder()</span>
+<span id="cb2-53"><a href="#cb2-53"></a>  .UseKestrel()</span>
+<span id="cb2-54"><a href="#cb2-54"></a>  .ConfigureAppConfiguration(appSettings)</span>
+<span id="cb2-55"><a href="#cb2-55"></a>  .Configure(Action&lt;IApplicationBuilder&gt; configureApp)</span>
+<span id="cb2-56"><a href="#cb2-56"></a>  .ConfigureServices(configureServices)</span>
+<span id="cb2-57"><a href="#cb2-57"></a>  .UseWebRoot(publicPath)</span>
+<span id="cb2-58"><a href="#cb2-58"></a>  .UseUrls(<span class="st">&quot;https://0.0.0.0:&quot;</span> + port.ToString() + <span class="st">&quot;/&quot;</span>)</span>
+<span id="cb2-59"><a href="#cb2-59"></a>  .Build()</span>
+<span id="cb2-60"><a href="#cb2-60"></a>  .Run()</span></code></pre></div>
+<h3 id="giraffe-application">Giraffe application</h3>
+<p>In this example we set up a simple API using Giraffe (see <a href="https://github.com/juselius/FSharpAzureAuthentication/blob/master/src/WebApp.fs">WebApp.fs</a>) , which allows the user to log in, log out and retrieve some basic user information:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode fsharp"><code class="sourceCode fsharp"><span id="cb3-1"><a href="#cb3-1"></a><span class="kw">let</span> authenticate : HttpHandler =</span>
+<span id="cb3-2"><a href="#cb3-2"></a>  challenge OpenIdConnectDefaults<span class="kw">.</span>AuthenticationScheme</span>
+<span id="cb3-3"><a href="#cb3-3"></a>  |&gt; requiresAuthentication</span>
+<span id="cb3-4"><a href="#cb3-4"></a></span>
+<span id="cb3-5"><a href="#cb3-5"></a><span class="kw">let</span> signIn (next : HttpFunc) (ctx : HttpContext) =</span>
+<span id="cb3-6"><a href="#cb3-6"></a>  authenticate next ctx</span>
+<span id="cb3-7"><a href="#cb3-7"></a></span>
+<span id="cb3-8"><a href="#cb3-8"></a><span class="kw">let</span> signOut (next : HttpFunc) (ctx : HttpContext) =</span>
+<span id="cb3-9"><a href="#cb3-9"></a>  task {</span>
+<span id="cb3-10"><a href="#cb3-10"></a>    <span class="kw">do</span>! ctx.SignOutAsync()</span>
+<span id="cb3-11"><a href="#cb3-11"></a>    <span class="kw">return</span>! next ctx</span>
+<span id="cb3-12"><a href="#cb3-12"></a>  }</span>
+<span id="cb3-13"><a href="#cb3-13"></a></span>
+<span id="cb3-14"><a href="#cb3-14"></a><span class="kw">let</span> webApp (next : HttpFunc) (ctx : HttpContext) =</span>
+<span id="cb3-15"><a href="#cb3-15"></a>  choose [</span>
+<span id="cb3-16"><a href="#cb3-16"></a>    routex <span class="st">&quot;(/?)&quot;</span> &gt;=&gt; indexHtml</span>
+<span id="cb3-17"><a href="#cb3-17"></a>    route <span class="st">&quot;/signin&quot;</span> &gt;=&gt; signIn &gt;=&gt; redirectTo <span class="kw">false</span> <span class="st">&quot;/?signin&quot;</span></span>
+<span id="cb3-18"><a href="#cb3-18"></a>    route <span class="st">&quot;/signout&quot;</span> &gt;=&gt; signOut &gt;=&gt; redirectTo <span class="kw">false</span> <span class="st">&quot;/?signout&quot;</span></span>
+<span id="cb3-19"><a href="#cb3-19"></a>    route <span class="st">&quot;/api/me&quot;</span> &gt;=&gt; getUser</span>
+<span id="cb3-20"><a href="#cb3-20"></a>  ] next ctx</span></code></pre></div>
+<p>The <code>/signin</code> endpoint triggers the authentication process by challenging the client to authenticate using the OpenId Connect scheme, using the <code>requiresAuthentication</code> and <code>challenge</code> functions from Giraffe. If the user isn’t already authenticated, it redirects the user to the <em>OpenId Connect</em> endpoint defined in <code>appsettings.json</code>. Here we are using <a href="https://login.microsoftonline.com">https://login.microsoftonline.com</a>, for normal AzureAd authentication (e.g. using 2FA, etc.). If authentication succeeds the user is redirected back to the main page, with an added query string allowing the endpoint to take any additional actions necessary after login.</p>
+<p>The <code>/signout</code> endpoint triggers the standard logout process, and clears credentials and identities from the request context.</p>
+<p>When the user has logged in, the request context contains only some very basic identity information about the user, like full name and user principal name (UPN). The <code>/api/me</code> endpoint calls <code>getUser</code>, which makes a request to the Microsoft Graph API, requesting the user’s e-mail address:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode fsharp"><code class="sourceCode fsharp"><span id="cb4-1"><a href="#cb4-1"></a><span class="kw">let</span> <span class="kw">private</span> getAzureUser (ctx : HttpContext) =</span>
+<span id="cb4-2"><a href="#cb4-2"></a>  <span class="kw">let</span> name = ctx.User<span class="kw">.</span>Identity<span class="kw">.</span>Name</span>
+<span id="cb4-3"><a href="#cb4-3"></a>  <span class="kw">let</span> emailDecoder =</span>
+<span id="cb4-4"><a href="#cb4-4"></a>    Decode<span class="kw">.</span>field <span class="st">&quot;value&quot;</span> (Decode<span class="kw">.</span>list (Decode<span class="kw">.</span>field <span class="st">&quot;mail&quot;</span> Decode<span class="kw">.</span><span class="dt">string</span>))</span>
+<span id="cb4-5"><a href="#cb4-5"></a>  <span class="kw">let</span> upn =</span>
+<span id="cb4-6"><a href="#cb4-6"></a>    <span class="kw">try</span></span>
+<span id="cb4-7"><a href="#cb4-7"></a>        ctx.User<span class="kw">.</span>FindFirst(ClaimTypes<span class="kw">.</span>Name).Value<span class="kw">.</span>ToLower()</span>
+<span id="cb4-8"><a href="#cb4-8"></a>    <span class="kw">with</span> _ -&gt; <span class="st">&quot;unknown&quot;</span></span>
+<span id="cb4-9"><a href="#cb4-9"></a>  task {</span>
+<span id="cb4-10"><a href="#cb4-10"></a>    <span class="kw">let</span>! token = graphAppToken ctx</span>
+<span id="cb4-11"><a href="#cb4-11"></a>    <span class="kw">let</span> query =</span>
+<span id="cb4-12"><a href="#cb4-12"></a>      graphUrlf <span class="st">&quot;users?$filter=userPrincipalName eq '%s'&amp;$select=mail&quot;</span> upn</span>
+<span id="cb4-13"><a href="#cb4-13"></a>    <span class="kw">let</span> content =</span>
+<span id="cb4-14"><a href="#cb4-14"></a>      Http<span class="kw">.</span>RequestString (</span>
+<span id="cb4-15"><a href="#cb4-15"></a>          query, headers = [ HttpRequestHeaders<span class="kw">.</span>Authorization token ]</span>
+<span id="cb4-16"><a href="#cb4-16"></a>      )</span>
+<span id="cb4-17"><a href="#cb4-17"></a>    <span class="kw">let</span> email =</span>
+<span id="cb4-18"><a href="#cb4-18"></a>      <span class="kw">match</span> Decode<span class="kw">.</span>fromString emailDecoder content <span class="kw">with</span></span>
+<span id="cb4-19"><a href="#cb4-19"></a>      | Ok e -&gt; <span class="kw">try</span> e.Head<span class="kw">.</span>ToLower() <span class="kw">with</span> _ -&gt; <span class="st">&quot;unknown&quot;</span></span>
+<span id="cb4-20"><a href="#cb4-20"></a>      | Error _ -&gt; <span class="st">&quot;unknown&quot;</span></span>
+<span id="cb4-21"><a href="#cb4-21"></a>    printfn <span class="st">&quot;azureUser: %A&quot;</span> (name, upn, email)</span>
+<span id="cb4-22"><a href="#cb4-22"></a>    <span class="kw">return</span> (name, email)</span>
+<span id="cb4-23"><a href="#cb4-23"></a>  }</span>
+<span id="cb4-24"><a href="#cb4-24"></a></span>
+<span id="cb4-25"><a href="#cb4-25"></a><span class="kw">let</span> getUser (next : HttpFunc) (ctx : HttpContext) =</span>
+<span id="cb4-26"><a href="#cb4-26"></a>  task {</span>
+<span id="cb4-27"><a href="#cb4-27"></a>    <span class="kw">let</span>! name, email = getAzureUser ctx</span>
+<span id="cb4-28"><a href="#cb4-28"></a>    <span class="kw">return</span>! json (name, email) next ctx</span>
+<span id="cb4-29"><a href="#cb4-29"></a>  }</span></code></pre></div>
+<p>The key function in the above code is <code>graphAppToken ctx</code> (defined in <a href="https://github.com/juselius/FSharpAzureAuthentication/blob/master/src/Graph.fs">Graph.fs</a> in the example code):</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode fsharp"><code class="sourceCode fsharp"><span id="cb5-1"><a href="#cb5-1"></a><span class="kw">let</span> graphAppToken (ctx : HttpContext) =</span>
+<span id="cb5-2"><a href="#cb5-2"></a>    <span class="kw">let</span> authProvider = ctx.RequestServices<span class="kw">.</span>GetService&lt;IGraphAuthProvider&gt;()</span>
+<span id="cb5-3"><a href="#cb5-3"></a>    task {</span>
+<span id="cb5-4"><a href="#cb5-4"></a>        <span class="kw">let</span>! accessToken = authProvider.GetUserAccessTokenAsync <span class="st">&quot;&quot;</span></span>
+<span id="cb5-5"><a href="#cb5-5"></a>        <span class="kw">let</span> authHeader = AuthenticationHeaderValue(<span class="st">&quot;Bearer&quot;</span>, accessToken)</span>
+<span id="cb5-6"><a href="#cb5-6"></a>        <span class="kw">return</span> authHeader.ToString ()</span>
+<span id="cb5-7"><a href="#cb5-7"></a>    }</span></code></pre></div>
+<p>This function requests a bearer token for the Graph API:s, which is then added to the standard HTTP Authorization tokens for the REST request.</p>
+<p>Microsoft Graph contains a ton of useful REST API:s, which are a breeze to use. Have fun!</p>
 
                     </div>
 
