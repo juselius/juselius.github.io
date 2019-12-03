@@ -1,9 +1,9 @@
-body {
-    color: black;
-    font-size: 16px;
-    margin: 0px auto 0px auto;
-    width: 600px;
-}
+/* body { */
+/*     color: black; */
+/*     font-size: 16px; */
+/*     margin: 0px auto 0px auto; */
+/*     width: 600px; */
+/* } */
 
 div#header {
     border-bottom: 2px solid black;
@@ -42,15 +42,25 @@ div#footer {
 }
 
 h1 {
-    font-size: 24px;
+    font-size: 32px;
 }
 
 h2 {
-    font-size: 20px;
+    font-size: 28px;
+}
+
+h3 {
+    font-size: 24px;
+}
+
+h4 {
+    font-size: 22px;
 }
 
 div.info {
     color: #555;
     font-size: 14px;
     font-style: italic;
+    font-family: Helvetica;
+    padding-bottom: 0.2rem;
 }
