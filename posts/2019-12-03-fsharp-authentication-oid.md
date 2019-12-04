@@ -55,7 +55,8 @@ To register your application with AzureAd, follow these steps:
    boxes under the **Implicit grant** section. You can also add
    *https://localhost:8085/signout* under **Logout URL**.
 #. Navigate to **API permissions** to give the app any additional permissions
-   you need. By default it can read basic information about the user.
+   you need (e.g. ``User.Read.All`` for mail, etc.). By default it can only read
+   very basic information about the user.
 
 ```json
 {
@@ -255,4 +256,4 @@ This function requests a bearer token for the Graph API:s, which is then added
 to  the standard HTTP Authorization tokens for the REST request.
 
 Microsoft Graph contains a ton of useful REST API:s, which are a breeze to
-use. Have fun!
+use. Have fun! I have suffered so you don't have to.
