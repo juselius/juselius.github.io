@@ -62,7 +62,7 @@
 <li>Copy the <em>Client Id</em> and <em>Tenant Id</em> into the <code>appsettings.json</code> file below.</li>
 <li>Navigate to the <strong>Certificates &amp; secrets</strong> menu and create a new <em>secret</em>, and copy it to <code>appsettings.json</code>.</li>
 <li>Navigate to <strong>Authentication</strong> and tick both the <em>Access tokes</em> and <em>ID tokes</em> boxes under the <strong>Implicit grant</strong> section. You can also add <em>https://localhost:8085/signout</em> under <strong>Logout URL</strong>.</li>
-<li>Navigate to <strong>API permissions</strong> to give the app any additional permissions you need. By default it can read basic information about the user.</li>
+<li>Navigate to <strong>API permissions</strong> to give the app any additional permissions you need (e.g. <code>User.Read.All</code> for mail, etc.). By default it can only read very basic information about the user.</li>
 </ol>
 <div class="sourceCode" id="cb1"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb1-1"><a href="#cb1-1"></a><span class="fu">{</span></span>
 <span id="cb1-2"><a href="#cb1-2"></a>   <span class="dt">&quot;AzureAd&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
@@ -214,7 +214,7 @@
 <span id="cb5-6"><a href="#cb5-6"></a>        <span class="kw">return</span> authHeader.ToString ()</span>
 <span id="cb5-7"><a href="#cb5-7"></a>    }</span></code></pre></div>
 <p>This function requests a bearer token for the Graph API:s, which is then added to the standard HTTP Authorization tokens for the REST request.</p>
-<p>Microsoft Graph contains a ton of useful REST API:s, which are a breeze to use. Have fun!</p>
+<p>Microsoft Graph contains a ton of useful REST API:s, which are a breeze to use. Have fun! I have suffered so you don’t have to.</p>
 
                     </div>
 
